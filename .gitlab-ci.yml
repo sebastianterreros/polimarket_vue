@@ -1,0 +1,29 @@
+image: node:18-alpine
+
+stages:
+  - build
+  - deploy
+
+build_app:
+  stage: build
+  script:
+    - echo "Instalando dependencias..."
+    - npm install
+    - echo "Compilando la aplicación Vue.js..."
+    - npm run build
+  artifacts:
+    paths:
+      - dist/ # Guarda la carpeta dist/ como artefacto para la siguiente etapa
+    expire_in: 1 day
+
+# Job para la etapa de despliegue en GitLab Pages
+pages:
+  stage: deploy
+  script:
+    - echo "Moviendo archivos compilados a la ubicación de GitLab Pages..."
+    - mv dist/ public/ # GitLab Pages busca los archivos estáticos en una carpeta llamada 'public/'
+  artifacts:
+    paths:
+      - public # Define 'public/' como la carpeta que GitLab Pages desplegará
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
