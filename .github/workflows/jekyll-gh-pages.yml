@@ -1,0 +1,81 @@
+# Nombre del workflow, aparecerá en la pestaña 'Actions' de tu repositorio
+name: Despliegue de Vue.js a GitHub Pages
+
+# Eventos que dispararán este workflow
+on:
+  push:
+    # Se ejecutará cuando se haga un push a la rama 'main'
+    branches: ["main"]
+  pull_request:
+    # Opcional: Se ejecutará cuando se abra o actualice un pull request a 'main'
+    branches: ["main"]
+  # Permite ejecutar este workflow manualmente desde la pestaña 'Actions'
+  workflow_dispatch:
+
+# Permisos necesarios para que el GITHUB_TOKEN pueda desplegar en Pages
+permissions:
+  contents: read   # Necesario para leer el código del repositorio
+  pages: write     # Necesario para escribir en el repositorio de Pages
+  id-token: write  # Necesario para la autenticación con OIDC (OpenID Connect)
+
+# Esto asegura que solo una ejecución de despliegue se ejecute a la vez.
+# Si hay un despliegue en progreso y se dispara otro, el anterior será cancelado.
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+# Definición de los trabajos (jobs) que se ejecutarán
+jobs:
+  # Job para construir la aplicación Vue
+  build:
+    runs-on: ubuntu-latest # El sistema operativo donde se ejecutará el job
+
+    steps:
+      # Paso 1: Clonar el repositorio
+      - name: Checkout del código
+        uses: actions/checkout@v4
+
+      # Paso 2: Configurar Node.js
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          # Usamos una versión específica de Node.js para la construcción.
+          # Puedes cambiarla si tu proyecto requiere otra.
+          node-version: 20.x
+          # Caching de dependencias para acelerar futuras ejecuciones
+          cache: 'npm'
+
+      # Paso 3: Instalar las dependencias del proyecto
+      - name: Instalar dependencias
+        run: npm ci # 'npm ci' es más seguro y rápido para CI/CD que 'npm install'
+
+      # Paso 4: Construir la aplicación Vue
+      - name: Construir la aplicación Vue
+        # Este comando ejecutará el script 'build' definido en tu package.json
+        # Generalmente, esto creará una carpeta 'dist' con los archivos compilados.
+        run: npm run build
+
+      # Paso 5: Subir el artefacto de construcción para GitHub Pages
+      # Este paso toma la carpeta 'dist' generada y la hace disponible para el job de despliegue.
+      - name: Subir artefacto para GitHub Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # Ruta a la carpeta de salida de tu build de Vue (generalmente 'dist')
+          path: ./dist
+
+  # Job para desplegar la aplicación en GitHub Pages
+  deploy:
+    # Este job depende del job 'build'. Solo se ejecutará si 'build' es exitoso.
+    needs: build
+    runs-on: ubuntu-latest # El sistema operativo donde se ejecutará el job
+
+    # Define el entorno de despliegue. Esto ayuda a organizar los despliegues en GitHub.
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }} # La URL del sitio desplegado
+
+    steps:
+      # Paso 1: Desplegar el artefacto subido a GitHub Pages
+      - name: Desplegar a GitHub Pages
+        id: deployment # ID para referenciar los outputs de este paso
+        uses: actions/deploy-pages@v4 # Acción oficial para desplegar en GitHub Pages
